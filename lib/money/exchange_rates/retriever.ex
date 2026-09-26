@@ -113,10 +113,9 @@ defmodule Money.ExchangeRates.Retriever do
   @spec latest_rates(GenServer.server()) ::
           {:ok, ExchangeRates.t()} | {:error, {Exception.t(), binary}}
   def latest_rates(retriever \\ __MODULE__) do
-    case GenServer.whereis(retriever) do
-      nil -> {:error, exchange_rate_service_error()}
-      pid -> GenServer.call(pid, :latest_rates)
-    end
+    GenServer.call(retriever, :latest_rates)
+  catch
+    :exit, {:noproc, _} -> {:error, exchange_rate_service_error()}
   end
 
   @doc """
