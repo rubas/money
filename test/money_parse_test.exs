@@ -125,6 +125,35 @@ defmodule MoneyTest.Parse do
                |> Money.parse(locale: "fr")
     end
 
+    test "CHF 1234.56 and CHF -1234.56 round trip in de-CH, fr-CH and en" do
+      for locale <- ["de-CH", "fr-CH", "en"], amount <- ["1234.56", "-1234.56"] do
+        money = Money.new!(:CHF, amount)
+        assert money |> Money.to_string!(locale: locale) |> Money.parse(locale: locale) == money
+      end
+    end
+
+    test "parses CHF 1'234.56 in de-CH and 1'234,56 CHF in fr-CH" do
+      assert Money.parse("CHF 1'234.56", locale: "de-CH") == Money.new(:CHF, "1234.56")
+      assert Money.parse("CHF-1'234.56", locale: "de-CH") == Money.new(:CHF, "-1234.56")
+      assert Money.parse("1'234,56 CHF", locale: "fr-CH") == Money.new(:CHF, "1234.56")
+      assert Money.parse("-1'234,56 CHF", locale: "fr-CH") == Money.new(:CHF, "-1234.56")
+    end
+
+    test "rejects CHF 1'234.56 in en" do
+      assert {:error, _} = Money.parse("CHF 1'234.56", locale: "en")
+    end
+
+    test "parses -CHF 1,234.56 and -$127.54 in en" do
+      assert Money.parse("-CHF 1,234.56", locale: "en") == Money.new(:CHF, "-1234.56")
+      assert Money.parse("-$127.54", locale: "en") == Money.new(:USD, "-127.54")
+    end
+
+    test "rejects -CHF -1,234.56, --CHF 1,234.56 and -CHF 1,234.56- in en" do
+      for string <- ["-CHF -1,234.56", "--CHF 1,234.56", "-CHF 1,234.56-"] do
+        assert {:error, {Money.ParseError, _}} = Money.parse(string, locale: "en")
+      end
+    end
+
     test "parsing strings that have `.` in them" do
       assert Money.parse("4.200,00 kr.", locale: "da") == Money.new(:DKK, "4200.00")
     end

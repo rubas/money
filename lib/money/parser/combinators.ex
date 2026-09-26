@@ -11,7 +11,7 @@ defmodule Money.Combinators do
     |> label("whitespace")
   end
 
-  @separators [?., ?,, ?،, ?٫, ?、, ?︐, ?︑, ?﹐, ?﹑, ?，, ?､, ? , 0x00A0]
+  @separators [?., ?,, ?،, ?٫, ?、, ?︐, ?︑, ?﹐, ?﹑, ?，, ?､, ? , 0x00A0, ?']
   def separators do
     utf8_char(@separators)
     |> label("separators")
@@ -90,6 +90,16 @@ defmodule Money.Combinators do
 
   def money_with_currency do
     choice(empty(), [
+      # A minus before the currency, as in "-CHF 1,234.56". The amount
+      # after the currency must be unsigned.
+      optional(rtl())
+      |> ignore(minus())
+      |> concat(currency())
+      |> ignore(optional(whitespace()))
+      |> concat(positive_number() |> reduce({List, :to_string, []}) |> unwrap_and_tag(:amount))
+      |> map(:change_sign)
+      |> optional(rtl())
+      |> eos(),
       optional(rtl())
       |> concat(number())
       |> ignore(optional(whitespace()))
