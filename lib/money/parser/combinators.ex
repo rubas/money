@@ -29,6 +29,12 @@ defmodule Money.Combinators do
   # A decimal mark can open or close an amount, as in ".5" and "0.".
   @decimal_marks [?., ?,]
 
+  # One or two dashes after the decimal mark stand for a zero fraction, as in
+  # Swiss "CHF 5.–" and "Fr. 5.--" or Dutch "€ 5,-". CLDR has no data for it
+  # (CLDR-3394). Only the mark stays: Localize reads "5." as 5 where the mark
+  # is the decimal mark of the currency, and fails where it groups.
+  @zero_fraction [?-, ?–, ?—, ?―]
+
   defp digits do
     times(utf8_char(@digits), min: 1)
   end
@@ -45,7 +51,7 @@ defmodule Money.Combinators do
     |> optional(utf8_char(@decimal_marks))
     |> concat(digits())
     |> repeat(repeat(utf8_char(Enum.map(@digits ++ @parens, &{:not, &1}))) |> concat(digits()))
-    |> optional(utf8_char(@decimal_marks))
+    |> optional(utf8_char(@decimal_marks) |> ignore(times(utf8_char(@zero_fraction), max: 2)))
     |> reduce({List, :to_string, []})
     |> unwrap_and_tag(:amount)
     |> optional(sign())

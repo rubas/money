@@ -543,8 +543,8 @@ defmodule Money do
 
   The amount is read with the separators that `to_string/2`
   formats it with in `:locale`, so a formatted amount
-  parses back. The `:separators` option of `Money.new/3`
-  does not apply.
+  parses back. A dash after the decimal mark stands for
+  a zero fraction, so "CHF 5.–" in `de-CH` is 5 francs.
 
   ### Arguments
 
@@ -724,16 +724,16 @@ defmodule Money do
          {:ok, currency_strings} <-
            Localize.Currency.currency_strings(locale, only: only_filter, except: except_filter),
          {:ok, currency} <-
-           find_currency(currency_strings, currency, fuzzy),
-         {:ok, decimal} <- parse_amount(amount, currency, locale) do
+           currency_strings |> with_local_strings(locale) |> find_currency(currency, fuzzy),
+         {:ok, decimal} <- parse_amount(amount, currency, locale, options) do
       Money.new(currency, decimal, options)
     end
   end
 
   # Localize reads the amount with the separators it formats this currency
   # with, so what `to_string/2` formats parses back.
-  defp parse_amount(amount, currency, locale) do
-    case Localize.Number.Parser.parse(amount, amount_options(currency, locale)) do
+  defp parse_amount(amount, currency, locale, options) do
+    case Localize.Number.Parser.parse(amount, amount_options(currency, locale, options)) do
       {:ok, decimal} -> {:ok, decimal}
       {:error, _parse_error} -> {:error, invalid_money_error(currency, amount)}
     end
@@ -741,11 +741,27 @@ defmodule Money do
 
   # `to_string/2` writes a digital token amount as a plain decimal in every
   # locale, so it reads with the root symbols.
-  defp amount_options(token_id, _locale) when is_digital_token(token_id),
+  defp amount_options(token_id, _locale, _options) when is_digital_token(token_id),
     do: [locale: :und, number: :decimal]
 
-  defp amount_options(currency, locale),
-    do: [locale: locale, number: :decimal, currency: currency]
+  defp amount_options(currency, locale, options) do
+    [locale: locale, number: :decimal, currency: currency] ++ Keyword.take(options, [:separators])
+  end
+
+  # Swiss prices write the franc as "Fr.". CLDR 48 has no such symbol for CHF,
+  # and French reads "FR" as the Rwandan franc, so where the franc is the
+  # currency of the locale, "Fr." is the franc. A filter without CHF drops it.
+  # Remove this once Localize ships CLDR-19297 (the CHF narrow symbol "Fr.")
+  # and fr-CH reads "Fr." as CHF without it.
+  defp with_local_strings(currency_strings, locale) do
+    case {Localize.Currency.currency_from_locale(locale), currency_strings} do
+      {{:ok, :CHF}, %{"chf" => :CHF}} ->
+        Map.put(currency_strings, "fr", :CHF)
+
+      _other ->
+        currency_strings
+    end
+  end
 
   defp find_currency(currency_strings, currency, nil) do
     canonical_currency =

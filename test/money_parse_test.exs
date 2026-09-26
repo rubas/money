@@ -212,4 +212,43 @@ defmodule MoneyTest.Parse do
       assert Money.parse("(1\u00A0234,56)\u00A0EUR", locale: "co") == Money.new(:EUR, "-1234.56")
     end
   end
+
+  describe "Money.parse/2 reads a whole price with a dash for the fraction" do
+    for locale <- ["de-CH", "fr-CH", "it-CH"],
+        {string, amount} <- [
+          {"CHF 5.-", "5"},
+          {"CHF 5.\u2013", "5"},
+          {"5.\u2013 CHF", "5"},
+          {"Fr. 5.-", "5"},
+          {"Fr. 5.--", "5"},
+          {"CHF 1'234.\u2013", "1234"},
+          {"CHF -5.-", "-5"},
+          {"(CHF 5.-)", "-5"}
+        ] do
+      test "#{locale} reads #{inspect(string)} as CHF #{amount}" do
+        assert Money.parse(unquote(string), locale: unquote(locale)) ==
+                 Money.new(:CHF, unquote(amount))
+      end
+    end
+
+    test "nl reads \u20AC 5,- as 5 euros and \u20AC 5,00- as -5 euros" do
+      assert Money.parse("\u20AC 5,-", locale: "nl") == Money.new(:EUR, "5")
+      assert Money.parse("\u20AC 5,00-", locale: "nl") == Money.new(:EUR, "-5.00")
+    end
+
+    test "de-CH reads CHF 5.00- as -5 francs" do
+      assert Money.parse("CHF 5.00-", locale: "de-CH") == Money.new(:CHF, "-5.00")
+    end
+
+    test "de groups with a dot, so CHF 5.- is an error, not 5 or -5 francs" do
+      assert Money.parse("CHF 5.-", locale: "de") ==
+               {:error, {Money.Invalid, "Unable to create money from :CHF and \"5.\""}}
+    end
+
+    test "Fr. is the franc only where the franc is the currency of the locale" do
+      assert Money.parse("Fr. 5.-", locale: "de") ==
+               {:error,
+                {Money.UnknownCurrencyError, "The currency \"Fr.\" is unknown or not supported"}}
+    end
+  end
 end
