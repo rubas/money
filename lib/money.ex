@@ -543,7 +543,8 @@ defmodule Money do
 
   The amount is read with the separators that `to_string/2`
   formats it with in `:locale`, so a formatted amount
-  parses back. A dash after the decimal mark stands for
+  parses back. `:separators` picks another set of separators,
+  as in `Money.new/3`. A dash after the decimal mark stands for
   a zero fraction, so "CHF 5.–" in `de-CH` is 5 francs.
 
   ### Arguments
