@@ -199,13 +199,15 @@ defmodule Money.ExchangeRates.RetrieverTest do
   end
 
   describe "when the retriever stops between lookup and call" do
-    test "latest_rates/1 on an exited retriever pid returns the service error" do
+    test "latest_rates/1 and historic_rates/2 on an exited retriever pid return the service error" do
       {pid, ref} = spawn_monitor(fn -> :ok end)
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
-      assert Retriever.latest_rates(pid) ==
-               {:error,
-                {Money.ExchangeRateError, "Exchange rate service does not appear to be running"}}
+      error =
+        {:error, {Money.ExchangeRateError, "Exchange rate service does not appear to be running"}}
+
+      assert Retriever.latest_rates(pid) == error
+      assert Retriever.historic_rates(pid, ~D[2017-01-01]) == error
     end
 
     test "Money.sum/1 of 1 USD and 2 USD returns 3 USD without calling the retriever" do
