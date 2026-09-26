@@ -230,7 +230,9 @@ defmodule MoneyTest do
       assert Money.to_string(Money.new(:CHF, "70.00"), options) == {:ok, "CHF 70.00"}
     end
 
-    test "honours no_fraction_if_integer stored on the money", %{chf_options: options} do
+    test "formats CHF 70 as CHF 70 and CHF 70.50 as CHF 70.50 with no_fraction_if_integer", %{
+      chf_options: options
+    } do
       assert Money.to_string(Money.new(:CHF, 70, no_fraction_if_integer: true), options) ==
                {:ok, "CHF 70"}
 
@@ -245,7 +247,7 @@ defmodule MoneyTest do
       assert message =~ "currency: :EUR"
     end
 
-    test "returns an error for options validated without a currency" do
+    test "returns an error for CHF 70 with options validated without a currency" do
       {:ok, options} = Options.validate_options(0, locale: :en)
 
       assert {:error, {Money.FormatError, _message}} =
