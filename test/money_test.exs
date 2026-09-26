@@ -729,6 +729,9 @@ defmodule MoneyTest do
 
       assert Money.parse("US$30\u00A0000,00", locale: :en_ZA, separators: :us) ==
                {:error, {Money.Invalid, "Unable to create money from :USD and \"30\\u00A0000,00\""}}
+
+      assert Money.parse("US$30,000.00", locale: :en_ZA, separators: :us) ==
+               Money.new(:USD, "30000.00")
     end
   end
 end
