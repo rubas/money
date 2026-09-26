@@ -90,8 +90,8 @@ defmodule Money.Combinators do
 
   def money_with_currency do
     choice(empty(), [
-      # "-CHF 1,234.56": the minus comes before the currency, so the
-      # amount must be unsigned
+      # A minus before the currency, as in "-CHF 1,234.56". The amount
+      # after the currency must be unsigned.
       optional(rtl())
       |> ignore(minus())
       |> concat(currency())

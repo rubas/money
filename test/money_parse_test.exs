@@ -132,23 +132,23 @@ defmodule MoneyTest.Parse do
       end
     end
 
-    test "parses apostrophe grouping in de-CH and fr-CH" do
+    test "parses CHF 1'234.56 in de-CH and 1'234,56 CHF in fr-CH" do
       assert Money.parse("CHF 1'234.56", locale: "de-CH") == Money.new(:CHF, "1234.56")
       assert Money.parse("CHF-1'234.56", locale: "de-CH") == Money.new(:CHF, "-1234.56")
       assert Money.parse("1'234,56 CHF", locale: "fr-CH") == Money.new(:CHF, "1234.56")
       assert Money.parse("-1'234,56 CHF", locale: "fr-CH") == Money.new(:CHF, "-1234.56")
     end
 
-    test "rejects apostrophe grouping in en" do
+    test "rejects CHF 1'234.56 in en" do
       assert {:error, _} = Money.parse("CHF 1'234.56", locale: "en")
     end
 
-    test "parses a minus before the currency" do
+    test "parses -CHF 1,234.56 and -$127.54 in en" do
       assert Money.parse("-CHF 1,234.56", locale: "en") == Money.new(:CHF, "-1234.56")
       assert Money.parse("-$127.54", locale: "en") == Money.new(:USD, "-127.54")
     end
 
-    test "rejects a second minus when the minus comes before the currency" do
+    test "rejects -CHF -1,234.56, --CHF 1,234.56 and -CHF 1,234.56- in en" do
       for string <- ["-CHF -1,234.56", "--CHF 1,234.56", "-CHF 1,234.56-"] do
         assert {:error, {Money.ParseError, _}} = Money.parse(string, locale: "en")
       end
