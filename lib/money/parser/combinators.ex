@@ -26,6 +26,9 @@ defmodule Money.Combinators do
   @minus [?-, ?−]
   @parens [?(, ?)]
 
+  # A decimal mark can open or close an amount, as in ".5" and "0.".
+  @decimal_marks [?., ?,]
+
   defp digits do
     times(utf8_char(@digits), min: 1)
   end
@@ -39,8 +42,10 @@ defmodule Money.Combinators do
   # From the first digit to the last, with its sign in front.
   def amount do
     optional(utf8_char(@minus) |> ignore(whitespace()))
+    |> optional(utf8_char(@decimal_marks))
     |> concat(digits())
     |> repeat(repeat(utf8_char(Enum.map(@digits ++ @parens, &{:not, &1}))) |> concat(digits()))
+    |> optional(utf8_char(@decimal_marks))
     |> reduce({List, :to_string, []})
     |> unwrap_and_tag(:amount)
     |> optional(sign())

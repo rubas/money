@@ -733,17 +733,19 @@ defmodule Money do
   # Localize reads the amount with the separators it formats this currency
   # with, so what `to_string/2` formats parses back.
   defp parse_amount(amount, currency, locale) do
-    options = [locale: locale, number: :decimal, currency: localize_currency(currency)]
-
-    case Localize.Number.Parser.parse(amount, options) do
+    case Localize.Number.Parser.parse(amount, amount_options(currency, locale)) do
       {:ok, decimal} -> {:ok, decimal}
       {:error, _parse_error} -> {:error, invalid_money_error(currency, amount)}
     end
   end
 
-  # `to_string/2` formats a digital token without Localize, as a plain number.
-  defp localize_currency(token_id) when is_digital_token(token_id), do: nil
-  defp localize_currency(currency), do: currency
+  # `to_string/2` writes a digital token amount as a plain decimal in every
+  # locale, so it reads with the root symbols.
+  defp amount_options(token_id, _locale) when is_digital_token(token_id),
+    do: [locale: :und, number: :decimal]
+
+  defp amount_options(currency, locale),
+    do: [locale: locale, number: :decimal, currency: currency]
 
   defp find_currency(currency_strings, currency, nil) do
     canonical_currency =

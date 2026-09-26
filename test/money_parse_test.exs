@@ -195,6 +195,19 @@ defmodule MoneyTest.Parse do
       assert Money.parse("(\u22125 USD)", locale: "en") == Money.new(:USD, "5")
     end
 
+    test "parses .5 USD as 0.5 and USD 0. as 0" do
+      assert Money.parse(".5 USD", locale: "en") == Money.new(:USD, "0.5")
+      assert Money.parse("USD 0.", locale: "en") == Money.new(:USD, "0")
+    end
+
+    @tag :digital_token
+    test "ETH 1.23 formats as ETH1.23 in de and parses back as 1.23" do
+      money = Money.new!("ETH", Decimal.new("1.23"))
+
+      assert Money.to_string(money, locale: "de") == {:ok, "ETH1.23"}
+      assert Money.parse("ETH1.23", locale: "de") == money
+    end
+
     test "Corsican accounting puts the currency after the parentheses" do
       assert Money.parse("(1\u00A0234,56)\u00A0EUR", locale: "co") == Money.new(:EUR, "-1234.56")
     end
