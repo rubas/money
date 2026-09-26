@@ -541,6 +541,11 @@ defmodule Money do
   currency code and amount will cause the parse to
   fail.
 
+  The amount is read with the separators that `to_string/2`
+  formats it with in `:locale`, so a formatted amount
+  parses back. The `:separators` option of `Money.new/3`
+  does not apply.
+
   ### Arguments
 
   * `string` is a string to be parsed
@@ -645,21 +650,39 @@ defmodule Money do
 
   """
   @doc since: "3.2.0"
+
+  # Arabic and Hebrew amounts carry bidirectional marks anywhere, as in
+  # "‏‎-1,234.56 ج.م.‏". They mean nothing to the parse.
+  @bidi_marks ["‎", "‏", "؜"]
+
   @spec parse(String.t(), Keyword.t()) ::
           Money.t() | {:error, {module(), String.t()}} | {:error, Exception.t()}
 
   def parse(string, options \\ []) do
-    case Money.Parser.money_parser(String.trim(string)) do
-      {:ok, result, "", _, _, _} ->
-        result
-        |> Enum.map(fn {k, v} -> {k, String.trim_trailing(v)} end)
-        |> Keyword.put_new(:currency, Keyword.get(options, :default_currency))
-        |> Map.new()
-        |> maybe_create_money(string, options)
+    case string
+         |> String.replace(@bidi_marks, "")
+         |> String.trim()
+         |> Money.Parser.money_parser() do
+      {:ok, [accounting: tokens], "", _, _, _} ->
+        with %Money{} = money <- parse_tokens(tokens, string, options), do: negate!(money)
+
+      {:ok, tokens, "", _, _, _} ->
+        parse_tokens(tokens, string, options)
 
       _ ->
         {:error, {Money.ParseError, "Could not parse #{inspect(string)}."}}
     end
+  end
+
+  # A sign before the currency or after the amount is the amount's sign.
+  defp parse_tokens(tokens, string, options) do
+    {signs, tokens} = Keyword.pop_values(tokens, :sign)
+
+    tokens
+    |> Map.new(fn {key, value} -> {key, String.trim(value)} end)
+    |> Map.update!(:amount, &(Enum.join(signs) <> &1))
+    |> Map.put_new(:currency, Keyword.get(options, :default_currency))
+    |> maybe_create_money(string, options)
   end
 
   # No currency was in the string and options[:default_currency] == false
@@ -701,10 +724,26 @@ defmodule Money do
          {:ok, currency_strings} <-
            Localize.Currency.currency_strings(locale, only: only_filter, except: except_filter),
          {:ok, currency} <-
-           find_currency(currency_strings, currency, fuzzy) do
-      Money.new(currency, amount, options)
+           find_currency(currency_strings, currency, fuzzy),
+         {:ok, decimal} <- parse_amount(amount, currency, locale) do
+      Money.new(currency, decimal, options)
     end
   end
+
+  # Localize reads the amount with the separators it formats this currency
+  # with, so what `to_string/2` formats parses back.
+  defp parse_amount(amount, currency, locale) do
+    options = [locale: locale, number: :decimal, currency: localize_currency(currency)]
+
+    case Localize.Number.Parser.parse(amount, options) do
+      {:ok, decimal} -> {:ok, decimal}
+      {:error, _parse_error} -> {:error, invalid_money_error(currency, amount)}
+    end
+  end
+
+  # `to_string/2` formats a digital token without Localize, as a plain number.
+  defp localize_currency(token_id) when is_digital_token(token_id), do: nil
+  defp localize_currency(currency), do: currency
 
   defp find_currency(currency_strings, currency, nil) do
     canonical_currency =

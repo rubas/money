@@ -139,4 +139,64 @@ defmodule MoneyTest.Parse do
                Money.new(:USD, "30000.00")
     end
   end
+
+  describe "Money.parse/2 reads what Money.to_string/2 formats" do
+    @formatted [
+      {"de-CH", :CHF, "1234.56", :currency, "CHF\u00A01'234.56"},
+      {"de-CH", :CHF, "1234.56", :accounting, "CHF\u00A01'234.56"},
+      {"de-CH", :CHF, "-1234.56", :currency, "CHF-1'234.56"},
+      {"de-CH", :CHF, "-1234.56", :accounting, "CHF-1'234.56"},
+      {"fr-CH", :CHF, "1234.56", :currency, "1'234.56\u00A0CHF"},
+      {"fr-CH", :CHF, "1234.56", :accounting, "1'234.56\u00A0CHF"},
+      {"fr-CH", :CHF, "-1234.56", :currency, "-1'234.56\u00A0CHF"},
+      {"fr-CH", :CHF, "-1234.56", :accounting, "(1'234.56\u00A0CHF)"},
+      {"de-AT", :EUR, "1234.56", :currency, "\u20AC\u00A01.234,56"},
+      {"de-AT", :EUR, "1234.56", :accounting, "\u20AC\u00A01.234,56"},
+      {"de-AT", :EUR, "-1234.56", :currency, "-\u20AC\u00A01.234,56"},
+      {"de-AT", :EUR, "-1234.56", :accounting, "-\u20AC\u00A01.234,56"},
+      {"en", :USD, "1234.56", :currency, "$1,234.56"},
+      {"en", :USD, "1234.56", :accounting, "$1,234.56"},
+      {"en", :USD, "-1234.56", :currency, "-$1,234.56"},
+      {"en", :USD, "-1234.56", :accounting, "($1,234.56)"},
+      {"sv", :SEK, "1234.56", :currency, "1\u00A0234,56\u00A0kr"},
+      {"sv", :SEK, "1234.56", :accounting, "1\u00A0234,56\u00A0kr"},
+      {"sv", :SEK, "-1234.56", :currency, "\u22121\u00A0234,56\u00A0kr"},
+      {"sv", :SEK, "-1234.56", :accounting, "\u22121\u00A0234,56\u00A0kr"},
+      {"ar", :EGP, "1234.56", :currency, "\u200F1,234.56\u00A0\u062C.\u0645.\u200F"},
+      {"ar", :EGP, "1234.56", :accounting, "\u061C1,234.56\u00A0\u062C.\u0645.\u200F"},
+      {"ar", :EGP, "-1234.56", :currency, "\u200F\u200E-1,234.56\u00A0\u062C.\u0645.\u200F"},
+      {"ar", :EGP, "-1234.56", :accounting, "(\u061C1,234.56\u00A0\u062C.\u0645.\u200F)"},
+      {"ar-EG", :EGP, "-1234.56", :currency,
+       "\u061C-\u200F\u0661\u066C\u0662\u0663\u0664\u066B\u0665\u0666\u00A0\u062C.\u0645.\u200F"}
+    ]
+
+    for {locale, currency, amount, format, string} <- @formatted do
+      test "#{locale} #{currency} #{amount} as #{format} formats as #{inspect(string)} and parses back" do
+        money = Money.new!(unquote(currency), unquote(amount))
+        options = [locale: unquote(locale)]
+
+        assert Money.to_string(money, [format: unquote(format)] ++ options) ==
+                 {:ok, unquote(string)}
+
+        assert Money.parse(unquote(string), options) == money
+      end
+    end
+
+    test "de-AT reads \u20AC 1.234 as 1234 euros, grouped as to_string/2 groups euros" do
+      assert Money.parse("\u20AC 1.234", locale: "de-AT") == Money.new(:EUR, "1234")
+    end
+
+    test "a sign before the currency and one on the amount is an error" do
+      assert Money.parse("-CHF -1,234.56", locale: "en") ==
+               {:error, {Money.Invalid, "Unable to create money from :CHF and \"--1,234.56\""}}
+    end
+
+    test "parentheses negate a Unicode minus amount" do
+      assert Money.parse("(\u22125 USD)", locale: "en") == Money.new(:USD, "5")
+    end
+
+    test "Corsican accounting puts the currency after the parentheses" do
+      assert Money.parse("(1\u00A0234,56)\u00A0EUR", locale: "co") == Money.new(:EUR, "-1234.56")
+    end
+  end
 end
